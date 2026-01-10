@@ -67,7 +67,7 @@ class TextEncoder(torch.nn.Module):
         text_repr = torch.cat(text_repr, dim=0)
         return normalize(text_repr, dim=-1)
     
-    def forward(self, inputs: dict):
+    def forward(self, inputs: dict, output_token: bool = False):
         """
         Encode text into text representation
         Args:
@@ -75,10 +75,17 @@ class TextEncoder(torch.nn.Module):
                 - input_ids: [batch, seq_len]
                 - attention_mask: [batch, seq_len]
                 - token_type_ids: [batch, seq_len]
+            output_token: Whether to return token-level representations
 
         Returns:
-            text_repr: [batch, text_repr_dim]
+            text_repr: [batch, text_repr_dim] or [batch, seq_len, text_repr_dim]
         """
-        reprs = self.model(**inputs).last_hidden_state[:, 0, :]
-        reprs = self.out(reprs)
+        last_hidden_state = self.model(**inputs).last_hidden_state
+        
+        if output_token:
+            reprs = self.out(last_hidden_state)
+        else:
+            reprs = last_hidden_state[:, 0, :]
+            reprs = self.out(reprs)
+            
         return reprs

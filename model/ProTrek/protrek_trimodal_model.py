@@ -15,6 +15,7 @@ from tqdm import tqdm
 from .protein_encoder import ProteinEncoder
 from .structure_encoder import StructureEncoder
 from .text_encoder import TextEncoder
+from .reranker import CrossAttentionReranker
 from ..abstract_model import AbstractModel
 from ..model_interface import register_model
 from utils.mpr import MultipleProcessRunnerSimplifier
@@ -68,6 +69,7 @@ class ProTrekTrimodalModel(AbstractModel):
                  use_mlm_loss: bool = False,
                  use_zlpr_loss: bool = False,
                  use_saprot: bool = False,
+                 use_reranker: bool = True,
                  gradient_checkpointing: bool = False,
                  **kwargs):
         """
@@ -92,6 +94,8 @@ class ProTrekTrimodalModel(AbstractModel):
 
             use_saprot: Whether to use SaProt as protein encoder
             
+            use_reranker: Whether to use a cross-attention reranker
+            
             gradient_checkpointing: Whether to use gradient checkpointing for protein encoder
         """
         self.protein_config = protein_config
@@ -104,6 +108,7 @@ class ProTrekTrimodalModel(AbstractModel):
         self.use_mlm_loss = use_mlm_loss
         self.use_zlpr_loss = use_zlpr_loss
         self.use_saprot = use_saprot
+        self.use_reranker = use_reranker
         self.gradient_checkpointing = gradient_checkpointing
         super().__init__(**kwargs)
     
@@ -150,6 +155,10 @@ class ProTrekTrimodalModel(AbstractModel):
         if self.structure_config is not None:
             self.structure_encoder = StructureEncoder(self.structure_config, self.repr_dim)
             self.model.append(self.structure_encoder)
+
+        if self.use_reranker:
+            self.reranker = CrossAttentionReranker(self.repr_dim)
+            self.model.append(self.reranker)
     
     def get_text_repr(self, texts: list, batch_size: int = 64, verbose: bool = False) -> torch.Tensor:
         return self.text_encoder.get_repr(texts, batch_size, verbose)
@@ -160,12 +169,26 @@ class ProTrekTrimodalModel(AbstractModel):
     def get_protein_repr(self, proteins: list, batch_size: int = 64, verbose: bool = False) -> torch.Tensor:
         return self.protein_encoder.get_repr(proteins, batch_size, verbose)
     
-    def forward(self, protein_inputs: dict, text_inputs: dict, structure_inputs: dict = None):
+    def rerank(self, protein_inputs: dict, text_inputs: dict):
+        """
+        Rerank protein-text pairs using cross-attention.
+        """
+        # Get residue-level protein embeddings
+        protein_residues, _ = self.protein_encoder(protein_inputs, output_residue=True)
+        # Get token-level text embeddings
+        text_tokens = self.text_encoder(text_inputs, output_token=True)
+        
+        # Get reranking scores
+        scores = self.reranker(text_tokens, protein_residues, protein_inputs.get("attention_mask"))
+        return scores
+    
+    def forward(self, protein_inputs: dict, text_inputs: dict, structure_inputs: dict = None, do_rerank: bool = False):
         """
         Args:
             protein_inputs: A dictionary for protein encoder
             structure_inputs: A dictionary for structure encoder
             text_inputs   : A dictionary for text encoder
+            do_rerank     : Whether to perform reranking
         """
         protein_repr, protein_mask_logits = self.protein_encoder(protein_inputs, self.use_mlm_loss)
         text_repr = self.text_encoder(text_inputs)
@@ -173,9 +196,16 @@ class ProTrekTrimodalModel(AbstractModel):
         outputs = [text_repr, protein_repr, protein_mask_logits]
         
         if self.structure_config is not None:
-            structure_repr, structure_mask_logits = self.structure_encoder(structure_inputs, self.use_mlm_loss)
+            if structure_inputs is not None:
+                structure_repr, structure_mask_logits = self.structure_encoder(structure_inputs, self.use_mlm_loss)
+            else:
+                structure_repr, structure_mask_logits = None, None
             outputs += [structure_repr, structure_mask_logits]
         
+        if do_rerank and self.use_reranker:
+            rerank_scores = self.rerank(protein_inputs, text_inputs)
+            outputs.append(rerank_scores)
+            
         return outputs
     
     def loss_func(self, stage: str, outputs, labels):
