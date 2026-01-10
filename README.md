@@ -32,7 +32,7 @@ We developed a new evaluation script `benchmark.py` that includes:
 ## 🛠️ Execution Guide
 
 ### Files & Environment
-- **Weights**: Optimized weights are saved in `weights/ProTrek_optimized_v2.pt`.
+- **Weights**: Optimized weights are saved in `weights/ProTrek_optimized_v2.pt`, which can be downloaded in this link https://drive.google.com/file/d/1A1mKw_7OV9zwGrCCkSH6_q5AKfhIGRAu/view?usp=drive_link.
 - **Data**: Training requires `protrek_data.tsv` (uses a 100k sample subset for efficiency).
 
 ### Commands
@@ -53,5 +53,5 @@ We developed a new evaluation script `benchmark.py` that includes:
 - `model/ProTrek/reranker.py`: The new Reranker module.
 - `model/ProTrek/protrek_trimodal_model.py`: Integrated two-stage retrieval logic.
 - `finetune.py`: Accelerated family-competitive training engine.
-- `benchmark.py`: V4 comprehensive evaluation system.
+- `benchmark.py`: Evaluation system.
 - `comparison_demo.py`: Direct visual comparison between model versions.
