@@ -14,7 +14,7 @@ A specialized training strategy was implemented in `finetune.py`:
 - **Hard Negative Mining**: Forces the model to distinguish between proteins in the same family by using "In-family" mismatched pairs (e.g., GFP sequence paired with RFP description) as negatives.
 - **Efficiency**: Utilizes **Layer Freezing** (freezing the first 24 layers of ESM2-650M) and **LoRA** to achieve high-performance fine-tuning within 3 hours on an A100 GPU.
 
-### 3. Comprehensive V4 Evaluation Suite
+### 3. Comprehensive Evaluation Suite
 We developed a new evaluation script `benchmark.py` that includes:
 - **Family Matrix Test**: Evaluates discrimination across GFP, RFP, YFP, and CFP.
 - **Decoy Test**: Shuffles sequences to ensure the model understands structural logic rather than just amino acid composition.
